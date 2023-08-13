@@ -25,8 +25,13 @@
 #include "GrablinkSnapshotDoc.h"
 #include "GrablinkSnapshotView.h"
 
-
 #include <stdlib.h>
+//custom
+using namespace std;
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <cmath>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -59,10 +64,17 @@ CGrablinkSnapshotDoc::CGrablinkSnapshotDoc()
     m_bScreenRefreshCompleted = TRUE;
 
     //ours
-    _numImages = 3;                     
+    _numImages = 15;                     
     _numImagesCounter = 0;              
     _strFilename = "Image";             
     _bStopped = true;                   
+    _outputFolder = _T(".\\SavedImages1");
+    //unsigned char* imageData;
+    imageSize =  0;
+    totalSize = 0;
+    imageData = NULL;
+    //imageData2 = NULL;
+    dataSaved = false;
     BmpHelper::Init8bppHeaders();
 }
 
@@ -79,6 +91,19 @@ BOOL CGrablinkSnapshotDoc::OnNewDocument()
 {
     if (!CDocument::OnNewDocument())
         return FALSE;
+    
+    // ================ CREATING IMAGE DIRECTORY !!!!===================
+    if (CreateDirectory(_outputFolder.GetString(), NULL) ||
+        ERROR_ALREADY_EXISTS == GetLastError())
+    {
+        //MessageBox(NULL, "Creating Directory.\n", "Error", MB_OK);
+    }
+    else
+    {
+        MessageBox(NULL, "Failed to create directory!\n", "Error", MB_OK);
+    }
+    
+    
 
     // + GrablinkSnapshot Sample Program
 
@@ -151,6 +176,13 @@ BOOL CGrablinkSnapshotDoc::OnNewDocument()
 
     // - GrablinkSnapshot Sample Program
     
+    imageSize = m_SizeX * m_SizeY * sizeof(unsigned char);
+    totalSize = imageSize * _numImages;
+    imageData = static_cast<unsigned char*>(std::malloc(totalSize));
+    //float aa = log10(totalSize);
+    //imageData2 = static_cast<unsigned char*>(std::malloc(totalSize));
+
+
     return TRUE;
 }
 
@@ -175,12 +207,19 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
 
     switch(SigInfo->Signal)
     {
-        case MC_SIG_SURFACE_PROCESSING: //original code did not have {} for case.
+        case MC_SIG_SURFACE_PROCESSING: 
         {
             // Update "current" surface address pointer
             McGetParamPtr(SigInfo->SignalInfo, MC_SurfaceAddr, &m_pCurrent);
+
             if (_numImagesCounter < _numImages)
             {
+                
+                imagePtr = imageData + (_numImagesCounter * imageSize);
+                std::memcpy(imagePtr, m_pCurrent, imageSize);
+
+                /*std::string out = std::to_string(m_SizeX * m_SizeY * sizeof(unsigned char));
+                MessageBox(NULL, out.c_str(), "Error", MB_OK);*/
                 //some basic tests for counter
                 /*
                 CString str;
@@ -189,24 +228,23 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 */
 
                 // create a path string using file name and counter number
-                CString str;
+                /*CString str;
                 str.Format(".\\SavedImages\\img%04d.bmp", _numImagesCounter);
-                // str.Format(".\\SavedImages\\img%04d.txt", _numImagesCounter);
 
-                // Open the file for writing
-                FILE* f = fopen(str, "wb");
+                FILE* f = fopen(str, "wb");*/
 
-                if (!f)
+                //if (!f)
+                //{
+                //    AfxMessageBox((LPCTSTR)"BMP file writing: Unable to write bitmap image data\n", MB_OK | MB_ICONSTOP);
+                //}
+
+                /*if (f != NULL)
                 {
-                    AfxMessageBox((LPCTSTR)"BMP file writing: Unable to write bitmap image data\n", MB_OK | MB_ICONSTOP);
-                }
-
-                if (f != NULL)
-                {
-                    // Save the image as bmp file
-                    BmpHelper::SaveTo8bppBmpFile(f, (LONG)m_SizeX, (LONG)m_SizeY, (unsigned char*)m_pCurrent);
+                    BmpHelper::SaveTo8bppBmpFile(f, (LONG)m_SizeX, (LONG)m_SizeY, (unsigned char*)imagePtr);
                     fclose(f);
-                }
+                }*/
+                /*std::string out = std::to_string(_numImagesCounter);
+                MessageBox(NULL, out.c_str(), "Error", MB_OK);*/
                 /*
                  if (f != NULL)
                 {
@@ -216,6 +254,34 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 */
                
                 
+            }
+            else if (dataSaved == false){
+                for (int k = 0; k < _numImages; ++k) {
+                    imagePtr = imageData + (k * imageSize);
+
+                    /*CString str;
+                    str.Format(".\\SavedImages\\img%04d.bmp", k);*/
+
+                  /*  CString str;
+                    CString str2;
+                    str2 = CString(_outputFolder);
+                    str.Format(_T("%s\\img%04d.bmp"), str2, k);*/
+
+                    CString str;
+                    str.Format(_T("%s\\img%04d.bmp"), _outputFolder, k);
+
+                    FILE* f = fopen(str, "wb");
+                    if (f != NULL)
+                    {
+                        BmpHelper::SaveTo8bppBmpFile(f, (LONG)m_SizeX, (LONG)m_SizeY, (unsigned char*)imagePtr);
+                        fclose(f);
+                    }
+                }
+                dataSaved = true;
+                McSetParamInt(m_Channel, MC_ChannelState, MC_ChannelState_IDLE);
+                UpdateAllViews(NULL);
+                std::string out = std::to_string(_numImagesCounter);
+                MessageBox(NULL, out.c_str(), "Error", MB_OK);
             }
             _numImagesCounter++;
             //----------------------------------------
@@ -275,6 +341,7 @@ void CGrablinkSnapshotDoc::OnGo()
     _numImagesCounter = 0;
     
     // - GrablinkSnapshot Sample Program
+    
 }
 
 void CGrablinkSnapshotDoc::OnStop()
@@ -287,6 +354,10 @@ void CGrablinkSnapshotDoc::OnStop()
     // - GrablinkSnapshot Sample Program
     
     UpdateAllViews(NULL);
+    
+
+
+    std::free(imageData);
 }
 
 /////////////////////////////////////////////////////////////////////////////

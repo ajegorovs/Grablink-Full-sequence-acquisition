@@ -52,7 +52,14 @@ public:
     int _numImages;         
     int _numImagesCounter;         
     bool _bStopped;
-    CString _strFilename;   
+    CString _strFilename;
+    CString _outputFolder;
+    unsigned char* imageData;
+    //unsigned char* imageData2;
+    unsigned char* imagePtr;
+    long long imageSize;
+    long long totalSize;
+    bool dataSaved;
 
 protected: // create from serialization only
     CGrablinkSnapshotDoc();
