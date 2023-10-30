@@ -222,8 +222,6 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 for (int k = 0; k < _numImages; ++k) {
                     imagePtr = imageData + (k * imageSize);
 
-                    str.Format(".\\SavedImages\\img%04d.bmp", k);*/
-
    
                     CString str;
                     str.Format(_T("%s\\img%04d.bmp"), _outputFolder, k);
@@ -238,7 +236,7 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 dataSaved = true;
                 McSetParamInt(m_Channel, MC_ChannelState, MC_ChannelState_IDLE);
                 UpdateAllViews(NULL);
-                MessageBox(NULL, out.c_str(), "Error", MB_OK);*/
+                //MessageBox(NULL, out.c_str(), "Error", MB_OK);
             }
             _numImagesCounter++;
             //----------------------------------------
