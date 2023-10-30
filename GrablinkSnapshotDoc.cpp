@@ -64,16 +64,14 @@ CGrablinkSnapshotDoc::CGrablinkSnapshotDoc()
     m_bScreenRefreshCompleted = TRUE;
 
     //ours
-    _numImages = 15;                     
+    _numImages = 15000;                     
     _numImagesCounter = 0;              
     _strFilename = "Image";             
     _bStopped = true;                   
-    _outputFolder = _T(".\\SavedImages1");
-    //unsigned char* imageData;
+    _outputFolder = _T(".\\400 sccm");
     imageSize =  0;
     totalSize = 0;
     imageData = NULL;
-    //imageData2 = NULL;
     dataSaved = false;
     BmpHelper::Init8bppHeaders();
 }
@@ -218,55 +216,15 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 imagePtr = imageData + (_numImagesCounter * imageSize);
                 std::memcpy(imagePtr, m_pCurrent, imageSize);
 
-                /*std::string out = std::to_string(m_SizeX * m_SizeY * sizeof(unsigned char));
-                MessageBox(NULL, out.c_str(), "Error", MB_OK);*/
-                //some basic tests for counter
-                /*
-                CString str;
-                str.Format("xXx%04dxXx", _numImagesCounter);
-                MessageBoxA(NULL, str, "testx", MB_OK);
-                */
-
-                // create a path string using file name and counter number
-                /*CString str;
-                str.Format(".\\SavedImages\\img%04d.bmp", _numImagesCounter);
-
-                FILE* f = fopen(str, "wb");*/
-
-                //if (!f)
-                //{
-                //    AfxMessageBox((LPCTSTR)"BMP file writing: Unable to write bitmap image data\n", MB_OK | MB_ICONSTOP);
-                //}
-
-                /*if (f != NULL)
-                {
-                    BmpHelper::SaveTo8bppBmpFile(f, (LONG)m_SizeX, (LONG)m_SizeY, (unsigned char*)imagePtr);
-                    fclose(f);
-                }*/
-                /*std::string out = std::to_string(_numImagesCounter);
-                MessageBox(NULL, out.c_str(), "Error", MB_OK);*/
-                /*
-                 if (f != NULL)
-                {
-                    fputs("fopen example", f);
-                    fclose(f);
-                }
-                */
-               
                 
             }
             else if (dataSaved == false){
                 for (int k = 0; k < _numImages; ++k) {
                     imagePtr = imageData + (k * imageSize);
 
-                    /*CString str;
                     str.Format(".\\SavedImages\\img%04d.bmp", k);*/
 
-                  /*  CString str;
-                    CString str2;
-                    str2 = CString(_outputFolder);
-                    str.Format(_T("%s\\img%04d.bmp"), str2, k);*/
-
+   
                     CString str;
                     str.Format(_T("%s\\img%04d.bmp"), _outputFolder, k);
 
@@ -280,8 +238,7 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 dataSaved = true;
                 McSetParamInt(m_Channel, MC_ChannelState, MC_ChannelState_IDLE);
                 UpdateAllViews(NULL);
-                std::string out = std::to_string(_numImagesCounter);
-                MessageBox(NULL, out.c_str(), "Error", MB_OK);
+                MessageBox(NULL, out.c_str(), "Error", MB_OK);*/
             }
             _numImagesCounter++;
             //----------------------------------------

@@ -55,7 +55,6 @@ public:
     CString _strFilename;
     CString _outputFolder;
     unsigned char* imageData;
-    //unsigned char* imageData2;
     unsigned char* imagePtr;
     long long imageSize;
     long long totalSize;
