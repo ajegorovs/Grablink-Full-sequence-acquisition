@@ -43,6 +43,7 @@ BEGIN_MESSAGE_MAP(CGrablinkSnapshotView, CView)
     // NOTE - the ClassWizard will add and remove mapping macros here.
     //    DO NOT EDIT what you see in these blocks of generated code!
     //}}AFX_MSG_MAP
+    ON_MESSAGE(WM_USER, OnRefresh)
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
@@ -194,4 +195,10 @@ void CGrablinkSnapshotView::OnInitialUpdate()
     CView::OnInitialUpdate();
 
     m_pMainFrame = (CMainFrame*)GetParent();	
+}
+
+LRESULT CGrablinkSnapshotView::OnRefresh(WPARAM wParam, LPARAM lParam)
+{
+    Invalidate(FALSE);  // FALSE = don't erase background (reduces flicker)
+    return 0;
 }

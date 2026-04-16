@@ -76,6 +76,9 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
         return -1;      // fail to create
     }
 
+    // Set status bar pane to minimum width of 400 pixels
+    m_wndStatusBar.SetPaneInfo(0, ID_INDICATOR_CHANNEL, SBPS_NORMAL, 400);
+
     return 0;
 }
 

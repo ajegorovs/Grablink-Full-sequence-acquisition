@@ -69,7 +69,7 @@ CGrablinkSnapshotDoc::CGrablinkSnapshotDoc()
     _strFilename = "Image";             
     _bStopped = true;                   
     _bCapturing = false;
-    _bResizeImage = true;
+    _bResizeImage = false;
     _outputFolder = _T(".\\captures\\spin");
     imageSize =  0;
     totalSize = 0;
@@ -241,8 +241,7 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
                 }
                 dataSaved = true;
                 _bCapturing = false;
-                McSetParamInt(m_Channel, MC_ChannelState, MC_ChannelState_IDLE);
-                UpdateAllViews(NULL);
+                // Keep channel ACTIVE for live preview after save completes
                 //MessageBox(NULL, out.c_str(), "Error", MB_OK);
             }
             // Only increment counter when actively capturing
@@ -259,19 +258,16 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
             if (m_bScreenRefreshCompleted)
             {
                 m_bScreenRefreshCompleted = FALSE;
+                // Post message to view's window - runs on UI thread, safe
+                HWND hWnd = NULL;
                 POSITION pos = GetFirstViewPosition();
                 CGrablinkSnapshotView* pView = (CGrablinkSnapshotView*)GetNextView(pos);
-                if (pView == NULL) return;
-
-                HWND hWindow = pView->GetSafeHwnd();
-                if (hWindow == NULL) return;
-
-                RECT recpict;
-                recpict.left = 0;
-                recpict.top = 0;
-                recpict.right = m_SizeX - 1;
-                recpict.bottom = m_SizeY - 1;
-                InvalidateRect(hWindow, &recpict, FALSE);
+                if (pView) {
+                    hWnd = pView->GetSafeHwnd();
+                    if (hWnd) {
+                        ::PostMessage(hWnd, WM_USER, 0, 0);
+                    }
+                }
             }
             break;
         }
@@ -297,28 +293,39 @@ void CGrablinkSnapshotDoc::Callback(PMCSIGNALINFO SigInfo)
 
 void CGrablinkSnapshotDoc::OnGo()
 {
-    // + GrablinkSnapshot Sample Program
-    
     // Start capturing to buffer
     _bCapturing = true;
     _bStopped = false;
     _numImagesCounter = 0;
     // Channel already ACTIVE from startup - continue for live preview
     
-    // - GrablinkSnapshot Sample Program
-    
+    // Update UI
+    HWND hWnd = NULL;
+    POSITION pos = GetFirstViewPosition();
+    CGrablinkSnapshotView* pView = (CGrablinkSnapshotView*)GetNextView(pos);
+    if (pView) {
+        hWnd = pView->GetSafeHwnd();
+        if (hWnd) {
+            ::PostMessage(hWnd, WM_USER, 0, 0);
+        }
+    }
 }
 
 void CGrablinkSnapshotDoc::OnStop()
 {
-    // + GrablinkSnapshot Sample Program
-    
     // Stop capturing (keep channel ACTIVE for preview)
     _bCapturing = false;
     
-    // - GrablinkSnapshot Sample Program
-    
-    UpdateAllViews(NULL);
+    // Update UI via posted message
+    HWND hWnd = NULL;
+    POSITION pos = GetFirstViewPosition();
+    CGrablinkSnapshotView* pView = (CGrablinkSnapshotView*)GetNextView(pos);
+    if (pView) {
+        hWnd = pView->GetSafeHwnd();
+        if (hWnd) {
+            ::PostMessage(hWnd, WM_USER, 0, 0);
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
