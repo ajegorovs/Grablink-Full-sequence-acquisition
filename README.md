@@ -42,9 +42,10 @@ Important behavior:
 
 - Windows and Visual Studio 2022 with platform toolset `v143`
 - MFC components installed
-- Euresys MultiCam SDK, expected under:
-  - `C:\Program Files (x86)\Euresys\MultiCam\Include`
-  - `C:\Program Files (x86)\Euresys\MultiCam\Lib\amd64`
+- Euresys MultiCam installed on the machine. The project resolves it from `$(MulticamRoot)`,
+  which defaults to `$(MSBuildProgramFiles32)\Euresys\MultiCam`, so the SDK header
+  (`Include\multicam.h`) and the import library (`Lib\amd64\MultiCam.lib`) are found without
+  editing the project when MultiCam is in its standard location
 - Production build target: `x64`
 - A compatible Grablink card and camera for end-to-end acquisition
 
@@ -56,6 +57,36 @@ The current camera configuration uses:
 - repeating snapshot acquisition.
 
 For a Basler camera that does not retain transport settings, configure the correct tap/transport mode in Pylon Viewer after power-up and verify the stream in the Euresys/MultiCam tools first.
+
+## Setting up on another machine
+
+The repository does not ship the Euresys SDK. `vendor/` is gitignored, and the MultiCam
+installation is not redistributable, so a clone contains the project, the code and the tests,
+but no headers, no import library, no runtime and no camera files. Per machine:
+
+1. Install the Euresys MultiCam runtime from Euresys (the Windows installer, for example
+   `multicam-win10-6.19.5.6064.exe`). It provides the headers and `MultiCam.lib` under
+   `C:\Program Files (x86)\Euresys\MultiCam`, the runtime `multicam.dll` with the **MultiCam
+   Service**, the camera-file library under
+   `C:\Users\Public\Documents\Euresys\MultiCam\Cameras`, and the MultiCamStudio and
+   CameraLinkValidationTool utilities used to verify the link before running this application.
+2. Install Visual Studio 2022 with the MFC components and the `v143` toolset, and build `x64`.
+3. Install the grabber driver as described by Euresys for the card, and verify the camera
+   stream in MultiCamStudio first.
+4. Check the camera configuration in `src/GrablinkSnapshotDoc.cpp`: the connector, the CAM file
+   (`acA2000-340km_P340SC` in the current configuration), the colour format and the acquisition
+   mode are set there. The CAM file must exist in the installed camera-file library.
+
+If MultiCam is installed anywhere other than the default location, point the build at it instead
+of editing the project — a command-line property, or an environment variable of the same name:
+
+```text
+MSBuild.exe GrablinkSnapshot.sln -p:Configuration=Debug -p:Platform=x64 -p:MulticamRoot="D:\SDK\Euresys\MultiCam"
+```
+
+The application was developed and validated against MultiCam **6.19.4.5806**. The `6.19.5`
+Windows package changes nothing functional on Windows — its release notes cover Linux
+installation and Clang/LLVM kernel builds; see `docs/SCOUT-multicam-ram-to-ssd.md`.
 
 ## Build
 

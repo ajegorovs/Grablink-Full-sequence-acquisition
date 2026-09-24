@@ -23,6 +23,12 @@
     <ProjectGuid>{FA3B6FE0-DD30-4B9C-85FD-C35263AF7592}</ProjectGuid>
     <Keyword>MFCProj</Keyword>
   </PropertyGroup>
+  <PropertyGroup Label="Euresys MultiCam SDK">
+    <!-- Single place to point the build at the SDK. Defaults to the standard install
+         location; override with -p:MulticamRoot="..." on the MSBuild command line, or with
+         an environment variable of the same name, if MultiCam lives somewhere else. -->
+    <MulticamRoot Condition="'$(MulticamRoot)'==''">$(MSBuildProgramFiles32)\Euresys\MultiCam</MulticamRoot>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -108,7 +114,7 @@
       <ObjectFileName>.\Release/</ObjectFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MulticamRoot)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -119,7 +125,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Lib\</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MulticamRoot)\Lib\</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -145,7 +151,7 @@
       <BrowseInformation>true</BrowseInformation>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MulticamRoot)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -157,7 +163,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MulticamRoot)\Lib</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -184,7 +190,7 @@
       <ObjectFileName>$(Platform)\$(Configuration)/</ObjectFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MulticamRoot)\Include</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
       <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" /D "_FILE_OFFSET_BITS=64" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -197,7 +203,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Lib\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MulticamRoot)\Lib\amd64</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -224,7 +230,7 @@
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MulticamRoot)\Include</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
       <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" /D "_FILE_OFFSET_BITS=64" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -238,7 +244,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Lib\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MulticamRoot)\Lib\amd64</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
