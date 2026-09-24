@@ -780,6 +780,16 @@ bool ReadBmpPixels(const std::wstring& path, int width, int height,
     return true;
 }
 
+// Exact size of the BMP BmpWriter produces for a given geometry: 14-byte
+// BITMAPFILEHEADER, 40-byte BITMAPINFOHEADER, 256 palette entries of 4 bytes,
+// then one row of (width + 3) / 4 * 4 bytes per image row.
+std::size_t ExpectedBmpFileSize(int width, int height)
+{
+    const std::size_t rowBytes = (static_cast<std::size_t>(width) + 3) / 4 * 4;
+    return static_cast<std::size_t>(kBmpPixelDataOffset) +
+           rowBytes * static_cast<std::size_t>(height);
+}
+
 std::size_t CountMatchingFiles(const std::wstring& folder, const std::wstring& pattern)
 {
     std::size_t count = 0;
@@ -985,6 +995,46 @@ private:
     RecordingSink& operator=(const RecordingSink&);
 
     std::vector<std::wstring> m_paths;
+};
+
+// Sink that reports a fixed, caller-chosen byte count for every successful
+// write and optionally delays each write. It never touches the file system, so
+// the byte accounting and the elapsed-time/throughput fields can be asserted
+// exactly and independently of disk speed, while the delay makes the job's
+// duration predictable.
+class PacingSink : public SaveSink
+{
+public:
+    PacingSink(unsigned long long bytesPerWrite, unsigned long delayMs)
+        : m_bytesPerWrite(bytesPerWrite), m_delayMs(delayMs), m_calls(0)
+    {
+    }
+
+    virtual BmpWriteResult Write(const std::wstring&, const unsigned char*,
+                                 int, int, int)
+    {
+        if (m_delayMs != 0)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(m_delayMs));
+        }
+        ++m_calls;
+
+        BmpWriteResult result;
+        result.success = true;
+        result.fileSize = m_bytesPerWrite;
+        result.bytesWritten = m_bytesPerWrite;
+        return result;
+    }
+
+    std::size_t Calls() const { return m_calls; }
+
+private:
+    PacingSink(const PacingSink&);
+    PacingSink& operator=(const PacingSink&);
+
+    unsigned long long m_bytesPerWrite;
+    unsigned long m_delayMs;
+    std::size_t m_calls;
 };
 
 // Bounded poll driven by the worker's own state (not by a fixed sleep), used
@@ -2358,4 +2408,316 @@ TEST_CASE(SaveWorkerContainsAnUnknownExceptionThrownByTheSink)
     CHECK_EQ(restarted.completed, static_cast<std::size_t>(2));
     CHECK_EQ(restarted.failed, static_cast<std::size_t>(0));
     CHECK_EQ(CountMatchingFiles(dir.Path(), L"h_*.bmp"), static_cast<std::size_t>(2));
+}
+
+// ---------------------------------------------------------------------------
+// Test 34: the byte counter reports the bytes that really reached the files:
+// for the default sink that is the exact size of every BMP, checked against
+// the files themselves. A finished job also reports a positive duration and a
+// throughput that is its bytes divided by that duration.
+// ---------------------------------------------------------------------------
+TEST_CASE(SaveWorkerReportsBytesWrittenFromActualFileSizes)
+{
+    test::TempDir dir;
+    REQUIRE(dir.Create(L"save_worker_byte_count"));
+
+    // 5 x 3: the width is not a multiple of 4, so the file rows carry padding
+    // that a "width * height" counter would get wrong.
+    const int width = 5;
+    const int height = 3;
+    const std::size_t frameCount = 4;
+    const std::size_t fileBytes = ExpectedBmpFileSize(width, height);
+
+    FrameSnapshot snapshot(width, height, frameCount,
+                           MakePixelData(width, height, frameCount));
+    REQUIRE(snapshot.IsValid());
+
+    SaveWorker worker;
+    REQUIRE(worker.Start(snapshot, dir.Path(), L"f"));
+    worker.Wait();
+
+    const SaveProgress progress = worker.Progress();
+    CHECK(!progress.running);
+    CHECK(!progress.cancelled);
+    CHECK_EQ(progress.completed, frameCount);
+    CHECK_EQ(progress.failed, static_cast<std::size_t>(0));
+
+    // The counter equals the size the BMP writer declares and writes...
+    CHECK_EQ(progress.bytesWritten,
+             static_cast<unsigned long long>(fileBytes) * frameCount);
+
+    // ...and that is what is actually on disk, frame by frame.
+    unsigned long long onDiskBytes = 0;
+    for (std::size_t frame = 0; frame < frameCount; ++frame)
+    {
+        const std::wstring path =
+            dir.File(SaveWorker::FileNameForIndex(L"f", frame, frameCount).c_str());
+        std::vector<unsigned char> bytes;
+        REQUIRE(test::ReadFileBytes(path, bytes));
+        CHECK_EQ(bytes.size(), fileBytes);
+        onDiskBytes += static_cast<unsigned long long>(bytes.size());
+    }
+    CHECK_EQ(progress.bytesWritten, onDiskBytes);
+
+    // A real job took a measurable amount of time, so its throughput is the
+    // bytes it wrote divided by that time - never zero while bytes are counted.
+    CHECK(progress.elapsedSeconds > 0.0);
+    CHECK(progress.bytesPerSecond > 0.0);
+    const double measured = static_cast<double>(progress.bytesWritten) /
+                            progress.elapsedSeconds;
+    CHECK(progress.bytesPerSecond >= measured * 0.99);
+    CHECK(progress.bytesPerSecond <= measured * 1.01);
+}
+
+// ---------------------------------------------------------------------------
+// Test 35: only successful frames contribute bytes. The failed frames of a
+// partially failing job are counted as failures and add nothing, and the
+// reported total still matches the files that were left on disk.
+// ---------------------------------------------------------------------------
+TEST_CASE(SaveWorkerDoesNotCountBytesOfFailedWrites)
+{
+    test::TempDir dir;
+    REQUIRE(dir.Create(L"save_worker_failed_bytes"));
+
+    FailingSink sink(2);            // fails every second call: frames 1, 3, 5
+    const int width = 4;
+    const int height = 2;
+    const std::size_t frameCount = 6;
+    const std::size_t fileBytes = ExpectedBmpFileSize(width, height);
+
+    FrameSnapshot snapshot(width, height, frameCount,
+                           MakePixelData(width, height, frameCount));
+    REQUIRE(snapshot.IsValid());
+
+    SaveWorker worker;
+    REQUIRE(worker.Start(snapshot, dir.Path(), L"f", &sink));
+    worker.Wait();
+
+    const SaveProgress progress = worker.Progress();
+    CHECK_EQ(progress.completed, static_cast<std::size_t>(3));
+    CHECK_EQ(progress.failed, static_cast<std::size_t>(3));
+    CHECK_EQ(progress.bytesWritten,
+             static_cast<unsigned long long>(fileBytes) * 3);
+    CHECK(progress.bytesWritten <
+          static_cast<unsigned long long>(fileBytes) * frameCount);
+
+    // The counter matches the three files that exist and ignores the three that
+    // were never created.
+    unsigned long long onDiskBytes = 0;
+    for (std::size_t frame = 0; frame < frameCount; ++frame)
+    {
+        const std::wstring path =
+            dir.File(SaveWorker::FileNameForIndex(L"f", frame, frameCount).c_str());
+        std::vector<unsigned char> bytes;
+        if (test::ReadFileBytes(path, bytes))
+        {
+            onDiskBytes += static_cast<unsigned long long>(bytes.size());
+        }
+    }
+    CHECK_EQ(progress.bytesWritten, onDiskBytes);
+    CHECK_EQ(onDiskBytes, static_cast<unsigned long long>(fileBytes) * 3);
+
+    CHECK(progress.elapsedSeconds > 0.0);
+    CHECK(progress.bytesPerSecond > 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Test 36: a job whose every write fails reports no bytes at all and therefore
+// no throughput, however long it was busy.
+// ---------------------------------------------------------------------------
+TEST_CASE(SaveWorkerReportsNoBytesWhenEveryWriteFails)
+{
+    test::TempDir dir;
+    REQUIRE(dir.Create(L"save_worker_no_bytes"));
+
+    const std::wstring missing = dir.Path() + L"\\does_not_exist";
+    const std::size_t frameCount = 3;
+
+    FrameSnapshot snapshot(4, 2, frameCount, MakePixelData(4, 2, frameCount));
+    REQUIRE(snapshot.IsValid());
+
+    SaveWorker worker;
+    REQUIRE(worker.Start(snapshot, missing, L"f"));
+    worker.Wait();
+
+    const SaveProgress progress = worker.Progress();
+    CHECK(!progress.running);
+    CHECK_EQ(progress.completed, static_cast<std::size_t>(0));
+    CHECK_EQ(progress.failed, frameCount);
+    CHECK_EQ(progress.bytesWritten, 0ULL);
+
+    // No bytes were written, so no throughput can be reported - even though the
+    // job did take time.
+    CHECK(progress.bytesPerSecond == 0.0);
+    CHECK(progress.elapsedSeconds >= 0.0);
+    CHECK_EQ(CountMatchingFiles(dir.Path(), L"f_*.bmp"), static_cast<std::size_t>(0));
+}
+
+// ---------------------------------------------------------------------------
+// Test 37: cancelling stops the byte count at the frame that was in flight: the
+// frames after the cancel add nothing to the byte total, and no metric is
+// invented for them.
+// ---------------------------------------------------------------------------
+TEST_CASE(SaveWorkerAccountsBytesAndTimeUpToTheCancelPoint)
+{
+    test::TempDir dir;
+    REQUIRE(dir.Create(L"save_worker_cancel_bytes"));
+
+    BlockingSink sink;
+    const int width = 4;
+    const int height = 2;
+    const std::size_t frameCount = 6;
+    const std::size_t fileBytes = ExpectedBmpFileSize(width, height);
+
+    FrameSnapshot snapshot(width, height, frameCount,
+                           MakePixelData(width, height, frameCount));
+    REQUIRE(snapshot.IsValid());
+
+    SaveWorker worker;
+    SinkReleaser releaser(&sink);
+
+    REQUIRE(worker.Start(snapshot, dir.Path(), L"f", &sink));
+    REQUIRE(sink.WaitUntilEntered(5000));
+
+    // The first frame is provably inside Write(): nothing has been written yet.
+    const SaveProgress inFlight = worker.Progress();
+    CHECK(inFlight.running);
+    CHECK_EQ(inFlight.completed, static_cast<std::size_t>(0));
+    CHECK_EQ(inFlight.bytesWritten, 0ULL);
+    CHECK(inFlight.bytesPerSecond >= 0.0);
+
+    worker.Cancel();
+    sink.Release();
+    worker.Wait();
+
+    const SaveProgress stopped = worker.Progress();
+    CHECK(!stopped.running);
+    CHECK(stopped.cancelled);
+    CHECK_EQ(stopped.completed, static_cast<std::size_t>(1));
+    CHECK_EQ(stopped.failed, static_cast<std::size_t>(0));
+
+    // Exactly the one frame that finished is counted, in bytes too.
+    CHECK_EQ(stopped.bytesWritten, static_cast<unsigned long long>(fileBytes));
+    CHECK_EQ(CountMatchingFiles(dir.Path(), L"f_*.bmp"), static_cast<std::size_t>(1));
+    CHECK(stopped.elapsedSeconds > 0.0);
+    CHECK(stopped.bytesPerSecond > 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Test 38: while a job runs its elapsed clock is already moving, and once it
+// has finished the duration covers the whole job - the throughput reported for
+// a paced sink reflects that duration, not an instant.
+// ---------------------------------------------------------------------------
+TEST_CASE(SaveWorkerReportsElapsedTimeAndThroughputWhileSaving)
+{
+    test::TempDir dir;
+    REQUIRE(dir.Create(L"save_worker_pacing"));
+
+    // 3 writes of 40 ms each: a job that cannot finish in less than ~120 ms.
+    const unsigned long long bytesPerFrame = 1000ULL;
+    PacingSink sink(bytesPerFrame, 40);
+    const std::size_t frameCount = 3;
+
+    FrameSnapshot snapshot(4, 2, frameCount, MakePixelData(4, 2, frameCount));
+    REQUIRE(snapshot.IsValid());
+
+    SaveWorker worker;
+    REQUIRE(worker.Start(snapshot, dir.Path(), L"f", &sink));
+
+    // Observed while the job is running: the elapsed clock has started and the
+    // job is still incomplete.
+    bool sawRunningClock = false;
+    const std::chrono::steady_clock::time_point deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        const SaveProgress running = worker.Progress();
+        if (running.running && running.elapsedSeconds > 0.0)
+        {
+            sawRunningClock = true;
+            CHECK(running.completed < frameCount);
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK(sawRunningClock);
+
+    worker.Wait();
+
+    const SaveProgress progress = worker.Progress();
+    CHECK(!progress.running);
+    CHECK_EQ(progress.completed, frameCount);
+    CHECK_EQ(progress.bytesWritten, bytesPerFrame * frameCount);
+
+    // The duration covers the three paced writes, not a rounding error.
+    CHECK(progress.elapsedSeconds >= 0.10);
+    CHECK(progress.elapsedSeconds < 5.0);
+
+    const double measured = static_cast<double>(progress.bytesWritten) /
+                            progress.elapsedSeconds;
+    CHECK(progress.bytesPerSecond >= measured * 0.99);
+    CHECK(progress.bytesPerSecond <= measured * 1.01);
+    CHECK_EQ(sink.Calls(), frameCount);
+}
+
+// ---------------------------------------------------------------------------
+// Test 39: a refused Start() never invents progress. Every refusal (invalid
+// snapshot, empty folder, thread creation failure) leaves the metrics at zero,
+// and a refusal after a finished job leaves that job's metrics untouched.
+// ---------------------------------------------------------------------------
+TEST_CASE(SaveWorkerReportsNoMetricsForRefusedStarts)
+{
+    test::TempDir dir;
+    REQUIRE(dir.Create(L"save_worker_refused_metrics"));
+
+    SaveWorker worker;
+
+    // (1) An invalid snapshot.
+    FrameSnapshot empty;
+    CHECK(!worker.Start(empty, dir.Path(), L"f"));
+    SaveProgress refused = worker.Progress();
+    CHECK(!refused.running);
+    CHECK_EQ(refused.bytesWritten, 0ULL);
+    CHECK(refused.elapsedSeconds == 0.0);
+    CHECK(refused.bytesPerSecond == 0.0);
+
+    // (2) An empty output folder.
+    FrameSnapshot good(4, 2, 2, MakePixelData(4, 2, 2));
+    REQUIRE(good.IsValid());
+    CHECK(!worker.Start(good, L"", L"f"));
+    refused = worker.Progress();
+    CHECK(!refused.running);
+    CHECK_EQ(refused.bytesWritten, 0ULL);
+    CHECK(refused.elapsedSeconds == 0.0);
+    CHECK(refused.bytesPerSecond == 0.0);
+    CHECK(good.IsValid());              // the refusal kept the frames
+
+    // (3) A thread that cannot be created: no metric moves, the frames stay.
+    worker.FailNextThreadStartForTest();
+    CHECK(!worker.Start(good, dir.Path(), L"f"));
+    refused = worker.Progress();
+    CHECK(!refused.running);
+    CHECK(!refused.lastError.empty());
+    CHECK_EQ(refused.bytesWritten, 0ULL);
+    CHECK(refused.elapsedSeconds == 0.0);
+    CHECK(refused.bytesPerSecond == 0.0);
+    CHECK(good.IsValid());
+
+    // A real job fills the metrics in...
+    REQUIRE(worker.Start(good, dir.Path(), L"f"));
+    worker.Wait();
+    const SaveProgress finished = worker.Progress();
+    CHECK(finished.bytesWritten > 0ULL);
+    CHECK(finished.elapsedSeconds > 0.0);
+    CHECK(finished.bytesPerSecond > 0.0);
+
+    // ...and a later refusal leaves them exactly as the finished job left them.
+    FrameSnapshot invalid;
+    CHECK(!worker.Start(invalid, dir.Path(), L"g"));
+    const SaveProgress afterRefusal = worker.Progress();
+    CHECK(!afterRefusal.running);
+    CHECK_EQ(afterRefusal.bytesWritten, finished.bytesWritten);
+    CHECK(afterRefusal.elapsedSeconds == finished.elapsedSeconds);
+    CHECK(afterRefusal.bytesPerSecond == finished.bytesPerSecond);
+    CHECK_EQ(afterRefusal.completed, finished.completed);
 }

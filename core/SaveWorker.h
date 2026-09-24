@@ -31,6 +31,7 @@
 // The file contains nothing but the C++ standard library: no MFC, no MultiCam
 // and no external dependency, so it can be unit tested without hardware.
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
@@ -124,6 +125,11 @@ private:
 // Consistent copy of a worker's state: "completed" counts frames written
 // successfully, "failed" those whose write failed, so while a finished,
 // uncancelled job always has completed + failed == total.
+//
+// The counters below describe the *actual* result reported by the sink, not an
+// estimate from the frame geometry: a job that wrote nothing (every frame
+// failed, or it was cancelled before the first write finished) reports zero
+// bytes and zero throughput even when it was busy for a while.
 struct SaveProgress
 {
     std::size_t total;
@@ -132,6 +138,22 @@ struct SaveProgress
     bool running;
     bool cancelled;
     std::string lastError;   // most recent failure, empty while all is well
+
+    // Bytes the sink reported as successfully written by this job. Only frames
+    // whose write succeeded contribute, and each one contributes what the sink
+    // said it really handed to the file - for the default sink that is the
+    // exact size of the written BMP (padding included), not width * height.
+    unsigned long long bytesWritten;
+
+    // Monotonic elapsed duration of the job, measured from the moment Start() accepted
+    // it: how long it has been running while it is still running, how long it
+    // took once it has finished. Zero before any job has started and for a
+    // refused Start().
+    double elapsedSeconds;
+
+    // bytesWritten / elapsedSeconds. Zero while no byte has been written or no
+    // measurable time has passed, so "no bytes, no throughput" is unambiguous.
+    double bytesPerSecond;
 
     SaveProgress();
 };
@@ -250,6 +272,13 @@ private:
     std::size_t m_completed;
     std::size_t m_failed;
     std::string m_lastError;
+
+    // Metrics of the current (or last finished) job, see SaveProgress. The
+    // start stamp is only meaningful while a job is running; once it has
+    // finished the duration is frozen in m_elapsedSeconds.
+    unsigned long long m_bytesWritten;
+    std::chrono::steady_clock::time_point m_startedAt;
+    double m_elapsedSeconds;
 };
 
 } // namespace grablinkcore
