@@ -79,7 +79,6 @@ CGrablinkSnapshotView::CGrablinkSnapshotView()
     m_pBitmapInfo->bmiHeader.biWidth = 0;
     m_pBitmapInfo->bmiHeader.biHeight = 0;
 
-    m_ChannelState = MC_ChannelState_ORPHAN;
 
 }
 
@@ -301,17 +300,6 @@ void CGrablinkSnapshotView::OnDraw(CDC* pDC)
     // Nothing below reads pPreviewBits; the lease is released when this function
     // returns, on every path.
 
-    // Display channel info on status bar
-    // Retrieve the channel state
-    McGetParamInt (pDoc->m_Channel, MC_ChannelState, &m_ChannelState);
-
-    // Retrieve the frame rate
-    double frameRate_Hz;
-    McGetParamFloat(pDoc->m_Channel, MC_PerSecond_Fr, &frameRate_Hz);
-    // Display frame rate and channel state
-    m_strChannelStatus.Format("Frame Rate: %.2f, Channel State: %s", frameRate_Hz,
-        (m_ChannelState == MC_ChannelState_ACTIVE? "ACTIVE" : "IDLE"));
-
     // Capture/save state is read through the document's accessors, which take
     // the capture lock: the acquisition callback mutates those fields on the
     // driver's signal thread.
@@ -380,9 +368,58 @@ void CGrablinkSnapshotView::OnDraw(CDC* pDC)
     const ULONGLONG nowTick = GetTickCount64();
 
     if (nowTick - lastStatusUpdateTick >= updateIntervalMs) {
+        lastStatusUpdateTick = nowTick;
+
+        // Channel state and frame rate are MultiCam driver reads, and they are
+        // made here, inside the throttle, and nowhere else: the driver call is
+        // the expensive part, and the status bar can only show ~2 Hz of it, so
+        // running it on every repaint bought nothing but a driver round trip
+        // per paint.
+        //
+        // Both outputs are initialized before their call and only trusted when
+        // that call reports MC_OK. A failed MultiCam read leaves the output
+        // untouched, so an uninitialized local (which is what the frame rate
+        // used to be) would otherwise be formatted as a garbage number; instead
+        // the failing field is shown as unavailable.
+        //
+        // A channel of 0 means the document has not created its MultiCam
+        // channel yet, or has already deleted it (it is set to 0 on teardown),
+        // and querying handle 0 is not a valid driver call, so it is skipped.
+        m_strChannelStatus = "Frame Rate: unavailable, Channel State: unavailable";
+        if (pDoc->m_Channel != 0)
+        {
+            INT32  channelState = MC_ChannelState_ORPHAN;
+            FLOAT64 frameRate_Hz = 0.0;
+
+            const MCSTATUS stateStatus =
+                McGetParamInt(pDoc->m_Channel, MC_ChannelState, &channelState);
+            const MCSTATUS rateStatus =
+                McGetParamFloat(pDoc->m_Channel, MC_PerSecond_Fr, &frameRate_Hz);
+
+            CString stateStr;
+            if (stateStatus == MC_OK)
+            {
+                stateStr = (channelState == MC_ChannelState_ACTIVE) ? "ACTIVE" : "IDLE";
+            }
+            else
+            {
+                stateStr = "unavailable";
+            }
+
+            if (rateStatus == MC_OK)
+            {
+                m_strChannelStatus.Format("Frame Rate: %.2f, Channel State: %s",
+                    frameRate_Hz, (LPCTSTR)stateStr);
+            }
+            else
+            {
+                m_strChannelStatus.Format("Frame Rate: unavailable, Channel State: %s",
+                    (LPCTSTR)stateStr);
+            }
+        }
+
         m_strChannelStatus += progressStr;
         if(m_pMainFrame) m_pMainFrame->WriteStatusBar(m_strChannelStatus);
-        lastStatusUpdateTick = nowTick;
     }
 }
 
