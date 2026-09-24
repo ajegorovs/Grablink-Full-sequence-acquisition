@@ -33,31 +33,31 @@
     <ClCompile Include="BmpHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\BmpWriter.cpp">
+    <ClCompile Include="..\core\BmpWriter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\CallbackDrain.cpp">
+    <ClCompile Include="..\core\CallbackDrain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\CaptureStats.cpp">
+    <ClCompile Include="..\core\CaptureStats.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\FrameBuffer.cpp">
+    <ClCompile Include="..\core\FrameBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\ModalScopeCounter.cpp">
+    <ClCompile Include="..\core\ModalScopeCounter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\PreviewPublisher.cpp">
+    <ClCompile Include="..\core\PreviewPublisher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\RefreshCoalescer.cpp">
+    <ClCompile Include="..\core\RefreshCoalescer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\RunFolder.cpp">
+    <ClCompile Include="..\core\RunFolder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="core\SaveWorker.cpp">
+    <ClCompile Include="..\core\SaveWorker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -88,31 +88,31 @@
     <ClInclude Include="BmpHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\BmpWriter.h">
+    <ClInclude Include="..\core\BmpWriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\CallbackDrain.h">
+    <ClInclude Include="..\core\CallbackDrain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\CaptureStats.h">
+    <ClInclude Include="..\core\CaptureStats.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\FrameBuffer.h">
+    <ClInclude Include="..\core\FrameBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\ModalScopeCounter.h">
+    <ClInclude Include="..\core\ModalScopeCounter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\PreviewPublisher.h">
+    <ClInclude Include="..\core\PreviewPublisher.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\RefreshCoalescer.h">
+    <ClInclude Include="..\core\RefreshCoalescer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\RunFolder.h">
+    <ClInclude Include="..\core\RunFolder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\SaveWorker.h">
+    <ClInclude Include="..\core\SaveWorker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

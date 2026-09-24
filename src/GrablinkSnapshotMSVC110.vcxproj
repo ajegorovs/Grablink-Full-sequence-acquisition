@@ -17,14 +17,6 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="test_x64|Win32">
-      <Configuration>test_x64</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="test_x64|x64">
-      <Configuration>test_x64</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>GrablinkSnapshot</ProjectName>
@@ -52,12 +44,6 @@
     <PlatformToolset>v143</PlatformToolset>
     <UseOfMfc>Dynamic</UseOfMfc>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='test_x64|Win32'">
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='test_x64|x64'">
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -82,23 +68,23 @@
     <_ProjectFileVersion>11.0.61030.0</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>.\Release\</OutDir>
-    <IntDir>.\Release\</IntDir>
+    <OutDir>$(ProjectDir)..\Win32\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)..\Win32\$(Configuration)\obj\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>.\Debug\</OutDir>
-    <IntDir>.\Debug\</IntDir>
+    <OutDir>$(ProjectDir)..\Win32\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)..\Win32\$(Configuration)\obj\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)..\x64\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)..\x64\$(Configuration)\obj\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)..\x64\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)..\x64\$(Configuration)\obj\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -107,7 +93,7 @@
       <MkTypLibCompatible>true</MkTypLibCompatible>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <TargetEnvironment>Win32</TargetEnvironment>
-      <TypeLibraryName>.\Release/GrablinkSnapshotMSVC80.tlb</TypeLibraryName>
+      <TypeLibraryName>.\Release/GrablinkSnapshot.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
@@ -122,7 +108,7 @@
       <ObjectFileName>.\Release/</ObjectFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -145,13 +131,12 @@
       <MkTypLibCompatible>true</MkTypLibCompatible>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <TargetEnvironment>Win32</TargetEnvironment>
-      <TypeLibraryName>.\Debug/GrablinkSnapshotMSVC80.tlb</TypeLibraryName>
+      <TypeLibraryName>.\Debug/GrablinkSnapshot.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0601;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -160,7 +145,7 @@
       <BrowseInformation>true</BrowseInformation>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -172,7 +157,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Euresys\MultiCam\Lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Lib</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -184,7 +169,7 @@
       <MkTypLibCompatible>true</MkTypLibCompatible>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <TargetEnvironment>X64</TargetEnvironment>
-      <TypeLibraryName>$(Platform)\$(Configuration)/GrablinkSnapshotMSVC80.tlb</TypeLibraryName>
+      <TypeLibraryName>$(Platform)\$(Configuration)/GrablinkSnapshot.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
@@ -199,7 +184,7 @@
       <ObjectFileName>$(Platform)\$(Configuration)/</ObjectFileName>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
       <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" /D "_FILE_OFFSET_BITS=64" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -224,13 +209,12 @@
       <MkTypLibCompatible>true</MkTypLibCompatible>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <TargetEnvironment>X64</TargetEnvironment>
-      <TypeLibraryName>$(Platform)\$(Configuration)/GrablinkSnapshotMSVC80.tlb</TypeLibraryName>
+      <TypeLibraryName>$(Platform)\$(Configuration)/GrablinkSnapshot.tlb</TypeLibraryName>
       <HeaderFileName />
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNING;WIN32;_WIN32_WINNT=0x0601;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -240,7 +224,7 @@
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\;$(MSBuildProgramFiles32)\Euresys\MultiCam\Include</AdditionalIncludeDirectories>
       <SDLCheck>false</SDLCheck>
       <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" /D "_FILE_OFFSET_BITS=64" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -254,46 +238,39 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Euresys\MultiCam\Lib\amd64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(MSBuildProgramFiles32)\Euresys\MultiCam\Lib\amd64</AdditionalLibraryDirectories>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
     </Bscmake>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='test_x64|x64'">
-    <ClCompile>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNING;</PreprocessorDefinitions>
-      <SDLCheck>false</SDLCheck>
-      <AdditionalOptions>/D "_CRT_SECURE_NO_WARNINGS" /D "_FILE_OFFSET_BITS=64" %(AdditionalOptions)</AdditionalOptions>
-    </ClCompile>
-  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BmpHelper.cpp" />
-    <ClCompile Include="core\BmpWriter.cpp">
+    <ClCompile Include="..\core\BmpWriter.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\CallbackDrain.cpp">
+    <ClCompile Include="..\core\CallbackDrain.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\CaptureStats.cpp">
+    <ClCompile Include="..\core\CaptureStats.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\FrameBuffer.cpp">
+    <ClCompile Include="..\core\FrameBuffer.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\ModalScopeCounter.cpp">
+    <ClCompile Include="..\core\ModalScopeCounter.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\PreviewPublisher.cpp">
+    <ClCompile Include="..\core\PreviewPublisher.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\RefreshCoalescer.cpp">
+    <ClCompile Include="..\core\RefreshCoalescer.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\RunFolder.cpp">
+    <ClCompile Include="..\core\RunFolder.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="core\SaveWorker.cpp">
+    <ClCompile Include="..\core\SaveWorker.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="GrablinkSnapshot.cpp" />
@@ -312,15 +289,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BmpHelper.h" />
-    <ClInclude Include="core\BmpWriter.h" />
-    <ClInclude Include="core\CallbackDrain.h" />
-    <ClInclude Include="core\CaptureStats.h" />
-    <ClInclude Include="core\FrameBuffer.h" />
-    <ClInclude Include="core\ModalScopeCounter.h" />
-    <ClInclude Include="core\PreviewPublisher.h" />
-    <ClInclude Include="core\RefreshCoalescer.h" />
-    <ClInclude Include="core\RunFolder.h" />
-    <ClInclude Include="core\SaveWorker.h" />
+    <ClInclude Include="..\core\BmpWriter.h" />
+    <ClInclude Include="..\core\CallbackDrain.h" />
+    <ClInclude Include="..\core\CaptureStats.h" />
+    <ClInclude Include="..\core\FrameBuffer.h" />
+    <ClInclude Include="..\core\ModalScopeCounter.h" />
+    <ClInclude Include="..\core\PreviewPublisher.h" />
+    <ClInclude Include="..\core\RefreshCoalescer.h" />
+    <ClInclude Include="..\core\RunFolder.h" />
+    <ClInclude Include="..\core\SaveWorker.h" />
     <ClInclude Include="GrablinkSnapshot.h" />
     <ClInclude Include="GrablinkSnapshotDoc.h" />
     <ClInclude Include="GrablinkSnapshotView.h" />
