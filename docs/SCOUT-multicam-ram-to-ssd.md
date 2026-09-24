@@ -78,12 +78,23 @@ Consequence for us: a >2 GiB RAM sequence has to be registered as **several surf
 - Monitoring: `Elapsed_Fr`, `Remaining_Fr`, `PerSecond_Fr`.
 - Important: in SNAPSHOT mode `PhaseLength_Fr` is *enforced to 1* — one frame per surface, i.e. 340 callbacks/s is inherent to the current mode. HFR at 255 turns that into ~1.3 phases/s, but the surface now holds 255 frames (slices), so the SSD dump must slice frames out of a surface and the UI/counter/save-progress path must become phase-based rather than frame-based. That is the main design decision to hand whoever implements the RAM→SSD work; verify the in-surface slice layout (offset = k × pitch × lines?) on hardware before relying on it.
 
-## 6. Driver-provided evidence for "no frame was lost" (for the instrumentation phase)
+## 6. Driver-provided evidence for delivery continuity (for the next instrumentation slice)
 
-Already available, no app-side bookkeeping needed:
+The driver exposes the following signals and parameters, but the application
+has **not yet recorded them for the September 24 live run**. Access, parameter
+scope, reset/rollover semantics and interpretation must be checked against the
+installed SDK before claiming zero drops. See
+`docs/LIVE-VALIDATION-2026-09-24.md` for the bounded run that still lacks this
+evidence; the operator's earlier external LED experiment addressed physical
+frame pace, not this run's delivery continuity:
 
 - `MC_OverrunCount` (get-only, writable to reset) — "incremented each time a transfer overrun occurs… when the data transfer between the frame grabber and the host computer saturates the PCI bus". This is the driver-truth counter for the RAM-capture failure mode.
-- `MC_TimeCode` (surface, get-only) — sequence position of each surface; **incremented even when an acquisition is not signalled** (e.g. cluster unavailable), reset at each ACTIVE. So `signalled frames` vs `TimeCode` is exactly the dropped-frame measure.
+- `MC_TimeCode` (surface, get-only) — sequence position of each surface; the
+  SDK notes it increments even when acquisition is not signalled (e.g. cluster
+  unavailable), and resets at ACTIVE. Check gaps between delivered surfaces on
+  a bounded run, alongside overrun and unavailable-cluster signals. Compare
+  like-for-like frame/surface units and check rollover before deriving a loss
+  count; a surface-only TimeCode cannot independently prove physical camera pace.
 - `MC_Elapsed_Fr` / `MC_Remaining_Fr` / `MC_PerSecond_Fr` / `MC_FillCount`.
 - Signals to enable: `MC_SIG_SURFACE_PROCESSING`, `MC_SIG_CLUSTER_UNAVAILABLE`, `MC_SIG_ACQUISITION_FAILURE`, `MC_SIG_FRAMETRIGGER_VIOLATION`, `MC_SIG_END_CHANNEL_ACTIVITY`; `MC_AcquisitionCleanup_ENABLED` suppresses spoiled images (their surfaces go straight to FREE).
 - Teardown pattern the vendor samples use, and which matches our "unregister the callback before channel teardown" invariant: `ChannelState = IDLE` → `McWaitSignal(channel, MC_SIG_END_CHANNEL_ACTIVITY, …)` → then delete surfaces/channel (`grablink-cuda/src/main.cpp`, `GrablinkMultiBaseGrabber.cpp:289-292`).
