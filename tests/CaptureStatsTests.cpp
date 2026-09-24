@@ -114,6 +114,8 @@ TEST_CASE(CaptureStatsStartsEmpty)
     CHECK_EQ(snapshot.captureFinished, false);
     CHECK_EQ(snapshot.captureBeginMicroseconds, 0ULL);
     CHECK_EQ(snapshot.captureEndMicroseconds, 0ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 0ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 0ULL);
     CHECK_EQ(snapshot.HasCaptureWindow(), false);
     CHECK_EQ(snapshot.CaptureDurationMicroseconds(), 0ULL);
     CHECK_CLOSE(snapshot.CaptureDurationSeconds(), 0.0, 1e-12);
@@ -231,6 +233,8 @@ TEST_CASE(CaptureStatsResetClearsEverything)
     CHECK_EQ(snapshot.captureFinished, false);
     CHECK_EQ(snapshot.captureBeginMicroseconds, 0ULL);
     CHECK_EQ(snapshot.captureEndMicroseconds, 0ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 0ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 0ULL);
 
     // Still usable, and recording after a reset counts from zero again.
     stats.RecordFrameStored();
@@ -277,6 +281,8 @@ TEST_CASE(CaptureStatsComputesCaptureDurationFromCallerTimestamps)
     CHECK_EQ(snapshot.captureStarted, true);
     CHECK_EQ(snapshot.captureFinished, false);
     CHECK_EQ(snapshot.captureBeginMicroseconds, 1000000ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 0ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 0ULL);
     CHECK_EQ(snapshot.HasCaptureWindow(), false);
     CHECK_EQ(snapshot.CaptureDurationMicroseconds(), 0ULL);
 
@@ -290,33 +296,54 @@ TEST_CASE(CaptureStatsComputesCaptureDurationFromCallerTimestamps)
 }
 
 // ---------------------------------------------------------------------------
-// Test 8: effective fps is stored frames over the caller supplied duration.
+// Test 8: effective fps is the frames stored during the window over the caller
+// supplied duration. Frames stored before BeginCapture() belong to an earlier
+// run: they stay in the cumulative counter but not in the window.
 // ---------------------------------------------------------------------------
 TEST_CASE(CaptureStatsComputesEffectiveFps)
 {
     CaptureStats stats;
+    stats.BeginCapture(1000000);
     for (int index = 0; index < 120; ++index)
     {
         stats.RecordFrameStored();
     }
-    stats.BeginCapture(1000000);
     stats.EndCapture(3000000);
 
     const CaptureStatsSnapshot snapshot = stats.Snapshot();
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 0ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 120ULL);
     CHECK_CLOSE(snapshot.CaptureDurationSeconds(), 2.0, 1e-12);
     CHECK_CLOSE(snapshot.EffectiveFps(), 60.0, 1e-9);
 
     // A fractional duration must not be truncated to whole seconds.
     CaptureStats other;
-    other.RecordFrameStored();
-    other.RecordFrameStored();
-    other.RecordFrameStored();
     other.BeginCapture(0);
+    other.RecordFrameStored();
+    other.RecordFrameStored();
+    other.RecordFrameStored();
     other.EndCapture(1500000);
 
     const CaptureStatsSnapshot otherSnapshot = other.Snapshot();
     CHECK_CLOSE(otherSnapshot.CaptureDurationSeconds(), 1.5, 1e-12);
     CHECK_CLOSE(otherSnapshot.EffectiveFps(), 2.0, 1e-9);
+
+    // Frames recorded before the window began are outside it.
+    CaptureStats carried;
+    for (int index = 0; index < 5; ++index)
+    {
+        carried.RecordFrameStored();
+    }
+    carried.BeginCapture(0);
+    carried.RecordFrameStored();
+    carried.RecordFrameStored();
+    carried.EndCapture(1000000);
+
+    const CaptureStatsSnapshot carriedSnapshot = carried.Snapshot();
+    CHECK_EQ(carriedSnapshot.framesStored, 7ULL);
+    CHECK_EQ(carriedSnapshot.framesStoredAtCaptureBegin, 5ULL);
+    CHECK_EQ(carriedSnapshot.CaptureWindowFramesStored(), 2ULL);
+    CHECK_CLOSE(carriedSnapshot.EffectiveFps(), 2.0, 1e-9);
 }
 
 // ---------------------------------------------------------------------------
@@ -548,4 +575,125 @@ TEST_CASE(CaptureStatsResetIsRaceSafe)
     // Usable again.
     stats.RecordFrameStored();
     CHECK_EQ(stats.Snapshot().framesStored, 1ULL);
+}
+
+// ---------------------------------------------------------------------------
+// Test 19: one run's reported rate must not be inflated by an earlier run's
+// stored frames. framesStored stays cumulative - it is a per-document
+// diagnostic total - but EffectiveFps() describes one window, so it may only
+// count the frames stored during the window it reports.
+// ---------------------------------------------------------------------------
+TEST_CASE(CaptureStatsEffectiveFpsCountsOnlyFramesStoredSinceWindowBegan)
+{
+    CaptureStats stats;
+
+    // Run 1: 100 frames over 1 s -> 100 fps.
+    stats.BeginCapture(1000000);
+    for (int index = 0; index < 100; ++index)
+    {
+        stats.RecordFrameStored();
+    }
+    stats.EndCapture(2000000);
+
+    CaptureStatsSnapshot snapshot = stats.Snapshot();
+    CHECK_EQ(snapshot.framesStored, 100ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 0ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 100ULL);
+    CHECK_EQ(snapshot.CaptureDurationMicroseconds(), 1000000ULL);
+    CHECK_CLOSE(snapshot.EffectiveFps(), 100.0, 1e-9);
+
+    // Run 2: 200 frames over 2 s -> 100 fps. The cumulative total is now 300,
+    // so dividing the whole of it by this window would report 150 fps.
+    stats.BeginCapture(2000000);
+    // The baseline moves with BeginCapture(): the new window starts empty even
+    // though 100 frames are already in the cumulative counter.
+    snapshot = stats.Snapshot();
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 100ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 0ULL);
+    for (int index = 0; index < 200; ++index)
+    {
+        stats.RecordFrameStored();
+    }
+    stats.EndCapture(4000000);
+
+    snapshot = stats.Snapshot();
+    // The cumulative counter itself is preserved: it is a diagnostic total
+    // for the whole document, not a per-window figure.
+    CHECK_EQ(snapshot.framesStored, 300ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 100ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 200ULL);
+    CHECK_EQ(snapshot.CaptureDurationMicroseconds(), 2000000ULL);
+    CHECK_CLOSE(snapshot.EffectiveFps(), 100.0, 1e-9);
+
+    // A third run of 300 frames over 3 s is 100 fps again, whatever the
+    // cumulative total has grown to.
+    stats.BeginCapture(5000000);
+    for (int index = 0; index < 300; ++index)
+    {
+        stats.RecordFrameStored();
+    }
+    stats.EndCapture(8000000);
+
+    snapshot = stats.Snapshot();
+    CHECK_EQ(snapshot.framesStored, 600ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 300ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 300ULL);
+    CHECK_CLOSE(snapshot.EffectiveFps(), 100.0, 1e-9);
+}
+
+// ---------------------------------------------------------------------------
+// Test 20: a capture that is started and then stopped without ever finishing
+// is still a window boundary. The run that follows must measure its rate from
+// its own begin, not from the last run that happened to end, and the abandoned
+// window itself reports no rate at all because it has no usable end.
+// ---------------------------------------------------------------------------
+TEST_CASE(CaptureStatsEffectiveFpsUsesItsOwnBaselineAfterAbandonedCapture)
+{
+    CaptureStats stats;
+
+    // Run 1: 100 frames over 1 s -> 100 fps.
+    stats.BeginCapture(0);
+    for (int index = 0; index < 100; ++index)
+    {
+        stats.RecordFrameStored();
+    }
+    stats.EndCapture(1000000);
+    CHECK_CLOSE(stats.Snapshot().EffectiveFps(), 100.0, 1e-9);
+
+    // A discarded run: started, 50 frames stored, never ended. It has no
+    // usable window, so it reports no rate even though frames were stored.
+    stats.BeginCapture(2000000);
+    for (int index = 0; index < 50; ++index)
+    {
+        stats.RecordFrameStored();
+    }
+
+    CaptureStatsSnapshot snapshot = stats.Snapshot();
+    CHECK_EQ(snapshot.framesStored, 150ULL);
+    // The discarded run opened a window of its own: its 50 frames are the
+    // window's frames, they are simply not turned into a rate because the
+    // window never finished.
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 100ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 50ULL);
+    CHECK_EQ(snapshot.HasCaptureWindow(), false);
+    CHECK_EQ(snapshot.CaptureDurationMicroseconds(), 0ULL);
+    CHECK_CLOSE(snapshot.EffectiveFps(), 0.0, 1e-12);
+
+    // Run 2: 200 frames over 2 s -> 100 fps. Its window began after the
+    // discarded run stored its frames, so those frames are outside it: both
+    // the run 1 total (100) and the discarded 50 would otherwise be counted.
+    stats.BeginCapture(3000000);
+    for (int index = 0; index < 200; ++index)
+    {
+        stats.RecordFrameStored();
+    }
+    stats.EndCapture(5000000);
+
+    snapshot = stats.Snapshot();
+    CHECK_EQ(snapshot.framesStored, 350ULL);
+    CHECK_EQ(snapshot.framesStoredAtCaptureBegin, 150ULL);
+    CHECK_EQ(snapshot.CaptureWindowFramesStored(), 200ULL);
+    CHECK_EQ(snapshot.HasCaptureWindow(), true);
+    CHECK_EQ(snapshot.CaptureDurationMicroseconds(), 2000000ULL);
+    CHECK_CLOSE(snapshot.EffectiveFps(), 100.0, 1e-9);
 }

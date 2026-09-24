@@ -3,8 +3,8 @@
 // CaptureStats.h - hardware-free, callback-safe aggregate capture diagnostics.
 //
 // The acquisition callback runs at frame rate on a driver thread and must stay
-// short, deterministic and free of allocation, string formatting, file-system
-// work and clock reads. CaptureStats is the diagnostics sink for that thread:
+// short, deterministic and free of allocation, string formatting and file-system
+// work. CaptureStats is the diagnostics sink for that thread:
 // every Record*() method is a handful of relaxed atomic operations, so it never
 // allocates, never blocks, never throws and never reads a clock. That makes it
 // safe to call from the callback, which is where the numbers have to be
@@ -43,7 +43,10 @@ struct CaptureStatsSnapshot
     unsigned long long surfacesReceived;
 
     // Frames the callback copied into the capture buffer, and frames it had to
-    // drop (buffer full, out of range, refused).
+    // drop (buffer full, out of range, refused). framesStored is cumulative
+    // for the lifetime of the aggregator: every capture keeps adding to it, so
+    // it is a diagnostic total for the whole run sequence and not the figure
+    // of any single window. Use CaptureWindowFramesStored() for one window.
     unsigned long long framesStored;
     unsigned long long framesRejected;
 
@@ -67,6 +70,12 @@ struct CaptureStatsSnapshot
     unsigned long long captureBeginMicroseconds;
     unsigned long long captureEndMicroseconds;
 
+    // Value the cumulative framesStored counter had when this capture window
+    // began. This is what makes the window's own frame count recoverable from
+    // a cumulative counter, so a run's rate is never inflated by frames an
+    // earlier run stored.
+    unsigned long long framesStoredAtCaptureBegin;
+
     CaptureStatsSnapshot();
 
     // True when a usable window exists: the capture started, finished, and the
@@ -82,8 +91,17 @@ struct CaptureStatsSnapshot
     // Duration in seconds, or 0.0 when there is no usable window.
     double CaptureDurationSeconds() const;
 
-    // Stored frames per second over the capture window, or 0.0 when there is no
-    // usable window or no stored frame.
+    // Frames stored during the capture window itself: framesStored minus the
+    // cumulative value the counter had when the window began. Zero when no
+    // capture window has begun, so frames recorded outside any window are
+    // never attributed to one, and zero rather than a wrapped around total if
+    // the baseline is somehow ahead of the counter.
+    unsigned long long CaptureWindowFramesStored() const;
+
+    // Stored frames per second over the capture window: the frames stored
+    // during that window divided by its duration. The rate describes one
+    // window only, so repeating a capture can never inflate it. Zero when
+    // there is no usable window or when the window stored no frame.
     double EffectiveFps() const;
 };
 
@@ -124,7 +142,10 @@ public:
     // --- capture window: supplied by the caller ----------------------------
 
     // Marks the capture as started at "beginMicroseconds" (any caller chosen
-    // monotonic microsecond origin). Clears a previously finished window.
+    // monotonic microsecond origin). Clears a previously finished window and
+    // takes the current cumulative framesStored value as the new window's
+    // baseline, so a window that is started and then abandoned still leaves
+    // the next window measuring only its own frames.
     void BeginCapture(unsigned long long beginMicroseconds) noexcept;
 
     // Marks the capture as finished at "endMicroseconds".
@@ -155,6 +176,10 @@ private:
     std::atomic<unsigned int> m_captureFinished;
     std::atomic<unsigned long long> m_captureBeginMicroseconds;
     std::atomic<unsigned long long> m_captureEndMicroseconds;
+
+    // Cumulative framesStored when the current window began. Written only by
+    // BeginCapture() and reset by Reset(); read by Snapshot().
+    std::atomic<unsigned long long> m_framesStoredAtCaptureBegin;
 };
 
 } // namespace grablinkcore

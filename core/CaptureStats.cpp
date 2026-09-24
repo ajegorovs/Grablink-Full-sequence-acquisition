@@ -41,7 +41,8 @@ CaptureStatsSnapshot::CaptureStatsSnapshot()
       captureStarted(false),
       captureFinished(false),
       captureBeginMicroseconds(0),
-      captureEndMicroseconds(0)
+      captureEndMicroseconds(0),
+      framesStoredAtCaptureBegin(0)
 {
 }
 
@@ -73,8 +74,29 @@ double CaptureStatsSnapshot::EffectiveFps() const
     {
         return 0.0;
     }
-    return static_cast<double>(framesStored) /
+
+    // Only the frames this window stored may be turned into a rate: the
+    // cumulative framesStored total spans every capture this aggregator has
+    // seen, so using it here would inflate the rate more with every run.
+    return static_cast<double>(CaptureWindowFramesStored()) /
            (static_cast<double>(duration) / static_cast<double>(kMicrosecondsPerSecond));
+}
+
+unsigned long long CaptureStatsSnapshot::CaptureWindowFramesStored() const
+{
+    if (!captureStarted)
+    {
+        // No window: frames recorded here belong to no run.
+        return 0;
+    }
+    if (framesStored <= framesStoredAtCaptureBegin)
+    {
+        // Nothing stored since the window began, or a baseline that a racing
+        // Reset left ahead of the counter. Clamp rather than wrap around into
+        // a huge frame count.
+        return 0;
+    }
+    return framesStored - framesStoredAtCaptureBegin;
 }
 
 // --- CaptureStats ----------------------------------------------------------
@@ -92,7 +114,8 @@ CaptureStats::CaptureStats()
       m_captureStarted(0),
       m_captureFinished(0),
       m_captureBeginMicroseconds(0),
-      m_captureEndMicroseconds(0)
+      m_captureEndMicroseconds(0),
+      m_framesStoredAtCaptureBegin(0)
 {
 }
 
@@ -115,6 +138,7 @@ void CaptureStats::Reset() noexcept
     m_captureFinished.store(0, std::memory_order_relaxed);
     m_captureBeginMicroseconds.store(0, std::memory_order_relaxed);
     m_captureEndMicroseconds.store(0, std::memory_order_relaxed);
+    m_framesStoredAtCaptureBegin.store(0, std::memory_order_relaxed);
 }
 
 void CaptureStats::RecordSurfaceReceived() noexcept
@@ -172,6 +196,14 @@ void CaptureStats::BeginCapture(unsigned long long beginMicroseconds) noexcept
     m_captureFinished.store(0, std::memory_order_relaxed);
     m_captureEndMicroseconds.store(0, std::memory_order_relaxed);
     m_captureBeginMicroseconds.store(beginMicroseconds, std::memory_order_relaxed);
+
+    // Freeze the cumulative frame count as this window's baseline. Every
+    // BeginCapture() takes a fresh baseline, so a window that is started and
+    // then abandoned without an EndCapture() still cannot leak its frames into
+    // the next window's rate. Stored before the release below, so a reader who
+    // acquires "started" also sees the baseline that belongs to it.
+    m_framesStoredAtCaptureBegin.store(m_framesStored.load(std::memory_order_relaxed),
+                                       std::memory_order_relaxed);
     m_captureStarted.store(1, std::memory_order_release);
 }
 
@@ -211,6 +243,10 @@ CaptureStatsSnapshot CaptureStats::Snapshot() const noexcept
         m_captureBeginMicroseconds.load(std::memory_order_relaxed);
     snapshot.captureEndMicroseconds =
         m_captureEndMicroseconds.load(std::memory_order_relaxed);
+    // Loaded after the flags with the timestamp the window began at, so a
+    // window is never assembled from a fresh flag and a stale baseline.
+    snapshot.framesStoredAtCaptureBegin =
+        m_framesStoredAtCaptureBegin.load(std::memory_order_relaxed);
 
     return snapshot;
 }
