@@ -40,6 +40,13 @@ IDR_MAINFRAME MENU PRELOAD DISCARDABLE
 BEGIN
     MENUITEM "Go!",                         ID_GO
     MENUITEM "Stop!",                       ID_STOP
+    MENUITEM "Stop & Save",                  ID_STOP_SAVE
+    MENUITEM "Set Output Folder...",         ID_SET_FOLDER
+    MENUITEM "Capture Settings...",          ID_CAPTURE_SETTINGS
+    POPUP "&View"
+    BEGIN
+        MENUITEM "&Fit to Window",               ID_VIEW_FIT_WINDOW
+    END
     POPUP "&Help"
     BEGIN
         MENUITEM "&About GrablinkSnapshot...",       ID_APP_ABOUT
@@ -85,6 +92,30 @@ BEGIN
                     SS_NOPREFIX
     LTEXT           "Copyright (C) 2007",IDC_STATIC,40,25,119,8
     DEFPUSHBUTTON   "OK",IDOK,178,7,50,14,WS_GROUP
+END
+
+IDD_FOLDER_DIALOG DIALOG DISCARDABLE  0, 0, 300, 60
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Set Output Folder"
+FONT 8, "MS Sans Serif"
+BEGIN
+    LTEXT           "Folder name:",IDC_STATIC,10,15,60,8
+    EDITTEXT        IDC_FOLDER_EDIT,75,12,180,14,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,70,35,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,170,35,50,14
+END
+
+IDD_CAPTURE_SETTINGS_DIALOG DIALOG DISCARDABLE  0, 0, 250, 100
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Capture Settings"
+FONT 8, "MS Sans Serif"
+BEGIN
+    LTEXT           "Frames per capture:",IDC_STATIC,10,15,70,8
+    EDITTEXT        IDC_CAPTURE_FRAMES_EDIT,85,12,60,14,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "The whole block is reserved and committed before acquisition starts.",IDC_STATIC,10,35,230,18
+    LTEXT           "Required committed memory: 0.0 MiB (0 bytes)",IDC_CAPTURE_MEMORY_LABEL,10,56,230,18
+    DEFPUSHBUTTON   "OK",IDOK,130,80,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,190,80,50,14
 END
 
 
@@ -244,6 +275,16 @@ END
 STRINGTABLE DISCARDABLE 
 BEGIN
     ID_VIEW_STATUS_BAR      "Show or hide the status bar\nToggle StatusBar"
+END
+
+STRINGTABLE DISCARDABLE 
+BEGIN
+    ID_CAPTURE_SETTINGS     "Set the number of frames one capture can hold and the memory it commits\nCapture Settings"
+END
+
+STRINGTABLE DISCARDABLE 
+BEGIN
+    ID_VIEW_FIT_WINDOW      "Scale the live preview to fit the view; unchecked shows 1:1 pixels\nFit to Window"
 END
 
 STRINGTABLE DISCARDABLE 

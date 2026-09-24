@@ -27,6 +27,8 @@
 #include "GrablinkSnapshotDoc.h"
 #include "GrablinkSnapshotView.h"
 
+#include "core/ModalScopeCounter.h" // application-modal scope for the About box
+
 #include "multicam.h"
 
 #ifdef _DEBUG
@@ -185,6 +187,35 @@ END_MESSAGE_MAP()
 // App command to run the dialog
 void CGrablinkSnapshotApp::OnAppAbout()
 {
+    // Help > About is a modal call on the UI thread, and it is the same hazard as
+    // the folder chooser: while DoModal() runs, its nested message loop
+    // dispatches the WM_APP_PREVIEW_REFRESH messages the acquisition callback
+    // posts, and that continuous post/Invalidate stream entering the loop leaves
+    // the About box hidden behind a disabled owner.
+    //
+    // The guard below holds one application-modal scope on the document for
+    // exactly the span of the modal call. It is a real guard even when there is
+    // no document to protect (an empty guard holds nothing and is inert), it
+    // nests with a scope the document may already be holding, and it ends the
+    // scope in its destructor, so the scope is released on every exit from the
+    // call.
+    grablinkcore::ModalScope modalScope;
+
+    // The document owns the counter, and the active document is the one whose
+    // view is being repainted, so the scope is taken from there. An application
+    // without a document - or a frame without an active view - simply has no
+    // preview to protect.
+    CFrameWnd* pMainFrame = DYNAMIC_DOWNCAST(CFrameWnd, AfxGetMainWnd());
+    if (pMainFrame != NULL)
+    {
+        CGrablinkSnapshotDoc* pDocument =
+            DYNAMIC_DOWNCAST(CGrablinkSnapshotDoc, pMainFrame->GetActiveDocument());
+        if (pDocument != NULL)
+        {
+            modalScope = pDocument->BeginModalScope();
+        }
+    }
+
     CAboutDlg aboutDlg;
     aboutDlg.DoModal();
 }

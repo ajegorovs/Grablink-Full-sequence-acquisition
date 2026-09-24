@@ -269,6 +269,33 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BmpHelper.cpp" />
+    <ClCompile Include="core\BmpWriter.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\CallbackDrain.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\CaptureStats.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\FrameBuffer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\ModalScopeCounter.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\PreviewPublisher.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\RefreshCoalescer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\RunFolder.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="core\SaveWorker.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="GrablinkSnapshot.cpp" />
     <ClCompile Include="GrablinkSnapshotDoc.cpp" />
     <ClCompile Include="GrablinkSnapshotView.cpp" />
@@ -285,6 +312,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BmpHelper.h" />
+    <ClInclude Include="core\BmpWriter.h" />
+    <ClInclude Include="core\CallbackDrain.h" />
+    <ClInclude Include="core\CaptureStats.h" />
+    <ClInclude Include="core\FrameBuffer.h" />
+    <ClInclude Include="core\ModalScopeCounter.h" />
+    <ClInclude Include="core\PreviewPublisher.h" />
+    <ClInclude Include="core\RefreshCoalescer.h" />
+    <ClInclude Include="core\RunFolder.h" />
+    <ClInclude Include="core\SaveWorker.h" />
     <ClInclude Include="GrablinkSnapshot.h" />
     <ClInclude Include="GrablinkSnapshotDoc.h" />
     <ClInclude Include="GrablinkSnapshotView.h" />

@@ -78,7 +78,10 @@ protected:
     // NOTE - the ClassWizard will add and remove member functions here.
     //    DO NOT EDIT what you see in these blocks of generated code !
     //}}AFX_MSG
+    afx_msg void OnDestroy();
     afx_msg LRESULT OnRefresh(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnCaptureComplete(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAcquisitionError(WPARAM wParam, LPARAM lParam);
     DECLARE_MESSAGE_MAP()
 };
 
