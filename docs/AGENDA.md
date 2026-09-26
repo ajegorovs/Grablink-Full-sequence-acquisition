@@ -391,6 +391,15 @@ Revisit the port when the diagnostics/configuration UI is actually specified;
 until then keep the MFC capture path and keep moving UI-independent decisions
 into `core/` so the port stays cheap.
 
+A first answer to "which controls could move into a side pane, and what would
+that cost" is in `docs/SCOUT-sidebar-and-control-relocation.md` (research only,
+no code): every existing command and dialog can be hosted in a pane with the
+document's handlers and modal-scope discipline reused unchanged, the cheapest
+carrier is a classic `CDialogBar` on the current `CFrameWnd`, and the resizable
+`CDockablePane` route is the one that needs the `CFrameWndEx`/`CWinAppEx`
+migration - i.e. it is the choice that should wait for the toolkit decision
+above, because a port replaces it.
+
 ## Deferred by design
 
 Do not replace RAM buffering with direct-to-disk streaming unless measurements show the storage device can sustain the camera stream with adequate margin. The current architecture intentionally absorbs the high-FPS sequence in RAM and saves only after capture.
