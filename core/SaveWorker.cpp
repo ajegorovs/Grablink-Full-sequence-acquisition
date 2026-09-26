@@ -51,6 +51,28 @@ std::size_t DigitCount(std::size_t value)
     return digits;
 }
 
+// Whole seconds between two points of a monotonic clock. The steady clock is
+// used on purpose: a save job must not report a shorter (or negative) duration
+// because the wall clock was adjusted while it ran.
+double ElapsedSeconds(std::chrono::steady_clock::time_point start,
+                      std::chrono::steady_clock::time_point end)
+{
+    const std::chrono::duration<double> elapsed = end - start;
+    return elapsed.count();
+}
+
+// Throughput of a job that wrote "bytes" in "seconds". Zero rather than
+// infinity when nothing was written or no measurable time has passed, so a
+// caller never has to special case an infinite rate.
+double BytesPerSecond(unsigned long long bytes, double seconds)
+{
+    if (seconds <= 0.0)
+    {
+        return 0.0;
+    }
+    return static_cast<double>(bytes) / seconds;
+}
+
 } // namespace
 
 namespace grablinkcore
@@ -358,7 +380,10 @@ SaveProgress::SaveProgress()
       failed(0),
       running(false),
       cancelled(false),
-      lastError()
+      lastError(),
+      bytesWritten(0),
+      elapsedSeconds(0.0),
+      bytesPerSecond(0.0)
 {
 }
 
@@ -391,7 +416,10 @@ SaveWorker::SaveWorker()
       m_total(0),
       m_completed(0),
       m_failed(0),
-      m_lastError()
+      m_lastError(),
+      m_bytesWritten(0),
+      m_startedAt(),
+      m_elapsedSeconds(0.0)
 {
 }
 
@@ -465,6 +493,14 @@ bool SaveWorker::Begin(FrameSnapshot& snapshot, const std::wstring& folder,
         m_failed = 0;
         m_cancelled = false;
         m_lastError.clear();
+
+        // The metrics of the new job start from zero. The clock starts here,
+        // before the thread exists, so the reported duration covers the whole
+        // job as the caller experienced it - including spawning the thread.
+        m_bytesWritten = 0;
+        m_elapsedSeconds = 0.0;
+        m_startedAt = std::chrono::steady_clock::now();
+
         m_running = true;
 
         try
@@ -490,6 +526,10 @@ bool SaveWorker::Begin(FrameSnapshot& snapshot, const std::wstring& folder,
             m_running = false;
             m_total = 0;
             m_lastError = kThreadCreation;
+            // No job ran after all, so there is no progress to report for it
+            // either - a refused Start() must never look like a started job.
+            m_bytesWritten = 0;
+            m_elapsedSeconds = 0.0;
             snapshot = std::move(m_jobSnapshot);
             m_jobFolder.clear();
             m_jobPrefix.clear();
@@ -515,6 +555,15 @@ SaveProgress SaveWorker::Progress() const
     progress.running = m_running;
     progress.cancelled = m_cancelled;
     progress.lastError = m_lastError;
+
+    // A running job reports how long it has been running so far; a finished one
+    // reports the duration it took. Both are read under the lock, so the copy
+    // is consistent with the counters above.
+    progress.elapsedSeconds = m_running
+        ? ElapsedSeconds(m_startedAt, std::chrono::steady_clock::now())
+        : m_elapsedSeconds;
+    progress.bytesWritten = m_bytesWritten;
+    progress.bytesPerSecond = BytesPerSecond(m_bytesWritten, progress.elapsedSeconds);
     return progress;
 }
 
@@ -644,6 +693,11 @@ void SaveWorker::Run(SaveSink* sink)
             if (result.success)
             {
                 ++m_completed;
+                // Only the bytes the sink really reported as written are
+                // counted. A frame that failed contributes nothing, not even
+                // the part of it that may have reached the disk before the
+                // failure was noticed.
+                m_bytesWritten += result.bytesWritten;
             }
             else
             {
@@ -688,6 +742,10 @@ void SaveWorker::Run(SaveSink* sink)
             }
             m_lastError = abortReason;
         }
+
+        // The job is over: its duration is frozen here, so every later read of
+        // Progress() reports the same number and the throughput it implies.
+        m_elapsedSeconds = ElapsedSeconds(m_startedAt, std::chrono::steady_clock::now());
 
         m_running = false;
     }

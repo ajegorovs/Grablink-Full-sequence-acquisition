@@ -70,7 +70,6 @@ protected:
     BITMAPINFO * m_pBitmapInfo;
 
     CString m_strChannelStatus;
-    int m_ChannelState;
 
 // Generated message map functions
 protected:

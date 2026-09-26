@@ -37,6 +37,7 @@
 #include "core/PreviewPublisher.h" // application-owned pool of live preview frames
 #include "core/RefreshCoalescer.h" // one-outstanding-message preview refresh gate
 #include "core/ModalScopeCounter.h" // application-modal suppression of the preview refresh
+#include "core/CaptureStats.h" // callback-safe aggregate capture diagnostics
 
 #include <atomic>
 #include <cstddef>
@@ -109,6 +110,20 @@ public:
     std::size_t CaptureFrameCapacity() const;
     bool IsCapturing() const;
     grablinkcore::SaveProgress GetSaveProgress() const;
+
+    // Race free copy of the acquisition diagnostics the driver callback
+    // accumulates - surfaces received, frames stored, frames rejected,
+    // acquisition failures, preview published and dropped, per-callback cost and
+    // the capture window. Safe to call from any thread at any time, including
+    // while a capture is running: the counters are atomics read one by one, so
+    // the copy is not transactional while the callback is active. Capture-window
+    // values stop changing when a run ends, but preview and surface counters
+    // continue to advance until the channel is drained.
+    //
+    // It is read by the on-demand "Capture Diagnostics..." panel, which shows
+    // these counters beside the frame-buffer geometry and the SaveWorker's own
+    // progress without touching the capture path.
+    grablinkcore::CaptureStatsSnapshot CaptureSnapshot() const;
 
     // Frames that were taken out of the capture buffer but whose save could not
     // be started. They are kept here (UI thread only) so a failed save never
@@ -213,6 +228,16 @@ protected:
     // tell a refused post from a queued one.
     bool PostViewMessage(UINT message) const;
 
+    // Stops the active capture run, if one is live, and closes the capture
+    // window in the statistics. Must be called with m_captureLock held, which
+    // is where _bCapturing is guarded.
+    //
+    // The true to false edge of _bCapturing is the whole guard: the callback and
+    // the UI command handlers all end a run through here, so EndCapture() is
+    // called once per run and never for a run that was already stopped. It
+    // returns true only when this call was the one that ended the run.
+    bool EndCaptureRunUnderLock() noexcept;
+
     // MBCS (LPCSTR) to UTF-16 conversion for the paths handed to the worker.
     // UI thread only: it reads CStrings.
     static std::wstring ToWideString(const CString& text);
@@ -234,6 +259,18 @@ private:
     // exists for this document's own command and posted-message handlers only.
     int ShowModalMessageBox(LPCTSTR text, LPCTSTR caption, UINT flags);
 
+    // Aborts a setup that failed in OnNewDocument(): reports "message" on the UI
+    // thread and releases whatever the partial setup had created. A refused
+    // MultiCam call leaves a handle that must not be driven further, so the
+    // setup stops there and this tears the generation down through
+    // ResetCaptureState() - the same drain-safe path Ctrl+N and the destructor
+    // use, and safe on a partial generation because it deletes the channel only
+    // when one was actually created and waits out any admitted callback first.
+    // This is what keeps a failed open from leaking the channel until the
+    // document is destroyed. Must be called with m_captureLock NOT held, because
+    // it shows a message box and ResetCaptureState() takes the lock itself.
+    BOOL AbortChannelSetup(LPCTSTR message);
+
 protected:
     // Capture state. Everything below is guarded by m_captureLock, except the
     // worker (which carries its own synchronisation) and m_pendingSnapshot
@@ -241,6 +278,27 @@ protected:
     mutable CRITICAL_SECTION m_captureLock;
     grablinkcore::FrameBuffer m_frameBuffer;
     grablinkcore::SaveWorker m_saveWorker;
+
+    // Aggregate acquisition diagnostics, fed from the callback and read through
+    // CaptureSnapshot(). Every Record*() is a relaxed atomic operation, so it is
+    // safe on the driver's signal thread; it is a plain member rather than a
+    // static or a global so nothing outlives the document that owns it.
+    //
+    // It is cleared in ResetCaptureState(), and only there - that is the one
+    // point at which the admission gate has reported that no callback is in
+    // flight, so a reset cannot race a recording callback.
+    //
+    // SaveWorker owns save progress and diagnostics; this member only tracks
+    // acquisition signals and capture windows.
+    grablinkcore::CaptureStats m_captureStats;
+
+    // QueryPerformanceCounter ticks per second, cached at construction because
+    // the value is fixed for the system and the callback must not query it per
+    // frame. Zero when the performance counter is unusable, in which case no
+    // callback duration is recorded at all (a stream of fake zero-cost callbacks
+    // would be worse than a missing measurement). Written once, on the UI
+    // thread, before OnNewDocument() registers the callback that reads it.
+    unsigned long long m_captureTicksPerSecond;
 
     // Admission gate for the acquisition callback, and the only thing that
     // makes the callback safe to unregister: ResetCaptureState() closes it and
@@ -307,6 +365,18 @@ protected:
     BOOL m_captureErrorPending;       // a frame could not be stored
     BOOL m_acquisitionFailurePending; // the driver reported an acquisition failure
 
+    // Surface-address read failure. McGetParamPtr(MC_SurfaceAddr) returns a
+    // MCSTATUS and the callback checks it; a refusal means the driver could not
+    // hand the callback the address of the surface for that signal, so nothing
+    // can be stored or published from it. The callback keeps only POD values:
+    // the raw status and the two flags below. No text, no allocation and no
+    // driver description lookup happen on the driver's signal thread - the
+    // UI-thread handler builds the operator-facing message from m_surfaceAddrStatus.
+    // All three are guarded by m_captureLock.
+    MCSTATUS m_surfaceAddrStatus;     // MCSTATUS returned by the refused read
+    BOOL m_surfaceAddrErrorPending;   // a refused read is not reported to the operator yet
+    BOOL m_surfaceAddrErrorNotified;  // a refusal has already been posted for this generation
+
     // Frames whose save could not be started, kept for a retry. UI thread only.
     grablinkcore::FrameSnapshot m_pendingSnapshot;
 
@@ -328,6 +398,7 @@ protected:
     afx_msg void OnCaptureSettings();
     afx_msg void OnViewFitWindow();
     afx_msg void OnUpdateViewFitWindow(CCmdUI* pCmdUI);
+    afx_msg void OnCaptureDiagnostics();
     //}}AFX_MSG
     DECLARE_MESSAGE_MAP()
 };

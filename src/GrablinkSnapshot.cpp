@@ -37,6 +37,18 @@
 static char THIS_FILE[] = __FILE__;
 #endif
 
+namespace {
+
+// True once InitInstance() has opened the MultiCam driver successfully. It is
+// read by ExitInstance() so the application closes the driver exactly as many
+// times as it opened it: the installed SDK documentation for McCloseDriver
+// states that as many McCloseDriver() calls as successful McOpenDriver() calls
+// are required, so a close after a failed open would unbalance the driver and
+// touch a connection this process never established.
+bool g_multiCamDriverOpen = false;
+
+} // namespace
+
 /////////////////////////////////////////////////////////////////////////////
 // CGrablinkSnapshotApp
 
@@ -71,12 +83,77 @@ CGrablinkSnapshotApp theApp;
 BOOL CGrablinkSnapshotApp::InitInstance()
 {
 
-    // Initialize driver and error handling
-    McOpenDriver(NULL);
+    // --- MultiCam driver open and error-handling policy --------------------
+    //
+    // McOpenDriver() returns MCSTATUS and, on Windows, fails with
+    // MC_SERVICE_ERROR (-25) when the "MultiCam Service" is not running. The
+    // installed SDK documentation (McOpenDriver reference) is explicit:
+    // "McOpenDriver will return MC_SERVICE_ERROR if the MultiCam service is not
+    // started when called", and software should only access MultiCam while that
+    // service is started. That same page suggests retrying McOpenDriver in a
+    // loop until MC_OK; this application deliberately does not, because a loop
+    // would block startup with no bound and no explanation for the operator. A
+    // failed open is reported on this UI thread and aborts startup instead;
+    // nothing downstream can work without the driver, and a startup failure is
+    // preferable to a window that opens and then refuses every action.
+    //
+    // The result is remembered in g_multiCamDriverOpen so ExitInstance() closes
+    // only a driver this process really opened (see that flag).
+    g_multiCamDriverOpen = (McOpenDriver(NULL) == MC_OK);
+    if (!g_multiCamDriverOpen)
+    {
+        AfxMessageBox(
+            _T("The MultiCam driver could not be opened, so the application cannot run.\n\n")
+            _T("Make sure the MultiCam Service is running (the driver returns\n")
+            _T("MC_SERVICE_ERROR when it is not), then start the application again."),
+            MB_OK | MB_ICONERROR);
+        return FALSE;
+    }
 
-    // Activate message box error handling and generate an error log file
-    McSetParamInt (MC_CONFIGURATION, MC_ErrorHandling, MC_ErrorHandling_MSGBOX);
-    McSetParamStr (MC_CONFIGURATION, MC_ErrorLog, "error.log");
+    // Error handling is set to NONE, the documented "Return" behavior: "On
+    // error, the MultiCam driver returns an error code" and no dialog box is
+    // shown (installed SDK documentation, ErrorHandling parameter reference and
+    // the "API Errors" page; NONE is also the documented default). It is the
+    // only one of the four behaviors that both suppresses the vendor's own
+    // message box and keeps every status available to this application:
+    //   - MSGBOX displays a dialog box and, if the operator picks IGNORE, forces
+    //     the function to return MC_OK, which would make a real failure look
+    //     like a success to the checks below;
+    //   - EXCEPTION and MSGEXCEPTION issue a Win32 structured exception, which
+    //     this C++/MFC build does not catch.
+    // The operator-facing errors therefore remain this application's own: every
+    // setup and activation call is checked and reported on the UI thread with
+    // the failing call's label and status (see CGrablinkSnapshotDoc).
+    if (McSetParamInt(MC_CONFIGURATION, MC_ErrorHandling, MC_ErrorHandling_NONE) != MC_OK)
+    {
+        // Without the Return behavior a driver failure could raise the vendor's
+        // dialog box or be turned into MC_OK, either of which makes this
+        // application's own error reporting unreliable, so startup is aborted
+        // rather than continued on a policy that cannot be trusted.
+        AfxMessageBox(
+            _T("The MultiCam error-handling policy could not be set to NONE, so driver\n")
+            _T("failures could not be reported reliably. The application cannot start\n")
+            _T("safely; check the MultiCam installation and try again."),
+            MB_OK | MB_ICONERROR);
+        McCloseDriver();
+        g_multiCamDriverOpen = false;
+        return FALSE;
+    }
+
+    // Best effort only. The error log is written by the parameter consistency
+    // check when it produces MC_INVALID_PARAMETER_SETTING, which is not needed
+    // for capture, so a refusal here is reported to the debugger and does not
+    // abort startup.
+    const MCSTATUS errorLogStatus =
+        McSetParamStr(MC_CONFIGURATION, MC_ErrorLog, "error.log");
+    if (errorLogStatus != MC_OK)
+    {
+        CString text;
+        text.Format(_T("GrablinkSnapshot: McSetParamStr(MC_ErrorLog) failed (status %d); ")
+                    _T("the parameter consistency log stays disabled.\n"),
+                    errorLogStatus);
+        ::OutputDebugString(text);
+    }
 
     AfxEnableControlContainer();
 
@@ -132,8 +209,15 @@ BOOL CGrablinkSnapshotApp::InitInstance()
 // CGrablinkSnapshotApp exit
 int CGrablinkSnapshotApp::ExitInstance()
 {
-    // Terminate driver
-    McCloseDriver ();
+    // Terminate the driver only when this process really opened it: the SDK
+    // requires as many McCloseDriver() calls as successful McOpenDriver() calls,
+    // and a close after a refused open would touch a connection that was never
+    // established.
+    if (g_multiCamDriverOpen)
+    {
+        McCloseDriver();
+        g_multiCamDriverOpen = false;
+    }
 
     return CWinApp::ExitInstance();
 }
